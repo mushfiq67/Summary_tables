@@ -1,0 +1,306 @@
+---
+title: "Customized table"
+author: "Md Mushfiqur Rahman"
+date: "5/31/2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r lib, warning=FALSE}
+#install.packages("gtsummary")
+#install.packages("finalfit")
+library(gtsummary)
+library(finalfit)
+library(dplyr)
+library(tidyverse)
+
+```
+
+# Summary Statistics table (Finalfit package)
+```{r}
+# Load example dataset, modified version of survival::colon
+data(colon_s)
+# glimpse of the colon_s dataset
+str(colon_s)
+
+# Table 1 - Patient demographics by variable of interest ----
+explanatory = c("age", "age.factor", "sex.factor", "obstruct.factor")
+dependent = "mort_5yr" 
+t1 <- colon_s %>%
+  summary_factorlist(dependent, explanatory,
+  cont = "mean", # cont is by default set to mean and corresponding hypothesis is tested. "median" gives non-parametric hypothesis with the IQR
+  p=TRUE,  # adds p-value column
+  add_dependent_label=TRUE)
+# Note: dependent(mort_5yr) includes missing data. These are dropped.
+# To print the table as a knitr table
+knitr::kable(t1)
+
+# We can adjust the alignment of the table using the align argument.
+knitr::kable(t1, row.names=FALSE, align=c("l", "l", "r", "r", "r"))
+
+# Here we can see that Chi-squared approximation may be incorrect warning is showed cause finalfit conducts Chi-square test as a default for categorical variables.
+# we can use p_cat argument to specify which kind of test we want finalfit to perform or the categorical variables.
+# Here we are conducting fisher's exact test for the categorical variables.
+
+# summary_factorlist only consists of "chisq" and "fisher" test for the categorical varables & for continious explanatory variables "aov"(anova test), "t.test", Kruskal wallis test and also Mann-Whitney U/ Wilcoxon rank sum test can be done.
+
+t1 <- colon_s %>%
+  summary_factorlist(dependent, explanatory,
+  p=TRUE, add_dependent_label=TRUE, p_cat = "fisher")
+
+# We can adjust the alignment of the table using the align argument.
+knitr::kable(t1, row.names=FALSE, align=c("l", "l", "r", "r", "r"))
+
+
+# Suppose we need to show the total for each of the row of the previous table. 
+# total_col = TRUE argument does this for you.
+t1 <- colon_s %>%
+  summary_factorlist(dependent, explanatory,
+  p=TRUE, add_dependent_label=FALSE, p_cat = "fisher",
+  total_col = TRUE
+  )
+
+# We can adjust the alignment of the table using the align argument.
+knitr::kable(t1, row.names=FALSE, align=c("l", "l", "r", "r", "r"))
+
+# to show the number of missing values for each of the variables.
+t1 <- colon_s %>%
+  summary_factorlist(dependent, explanatory,
+  p=TRUE, add_dependent_label=FALSE, p_cat = "fisher",
+  total_col = TRUE, 
+  na_include = TRUE # by default FALSE
+  )
+
+# We can adjust the alignment of the table using the align argument.
+knitr::kable(t1, row.names=FALSE, align=c("l", "l", "r", "r", "r"))
+
+
+# to add row total
+
+t1 <- colon_s %>%
+  summary_factorlist(dependent, explanatory,
+  p=TRUE, add_dependent_label=FALSE, p_cat = "fisher",
+  add_row_totals = TRUE
+  )
+
+# We can adjust the alignment of the table using the align argument.
+knitr::kable(t1, row.names=FALSE, align=c("l", "l", "r", "r", "r"))
+# this is the end of the summary_factorlist function from the finalfit packsge
+# to know more about this function type ?summary_factorlist and hit run!!
+```
+
+# Summary table of gtsummary package
+
+```{r gt_summmary}
+library(gtsummary)
+explanatory = c("age", "age.factor", "sex.factor", "obstruct.factor")
+dependent = "mort_5yr" 
+
+# Univariate tables
+t2 <- colon_s %>%select("age","age.factor","sex.factor","obstruct.factor","mort_5yr") %>% tbl_summary()
+
+t2
+# this shows the univariate descriptive table for the selected variables along with the missing values. Note that for continious variable thei function provides Median and 1st & 3rd quantile values inside the round brackets.
+
+# for bivarite table "by" argument is used in the tbl_summary which automatically creates bivariate table
+t2 <- colon_s %>%select("age","age.factor","sex.factor","obstruct.factor","mort_5yr") %>% tbl_summary(by = "mort_5yr") 
+
+
+t2 # note that 14 missing values of the mort_5yr variable has been removed automatically
+# For continious is shows the median and 1st & 3rd quantile values inside the round brackets. the top "N=" shows the total for each pof the column
+
+# For hypothesis testing we just need to add "add_p()" funciton with the help of pipe ( %>% )
+# then for removing the warning of the missing values of mort_5yr we use forcats::fct_explicit_na()
+t2 <- colon_s %>%select("age","age.factor","sex.factor","obstruct.factor","mort_5yr") %>%  
+  tbl_summary(by = "mort_5yr",
+              missing = "always", # Creates a row named "Unknown" for each of the variables
+              missing_text = "(Missing)", # Changes the newly created "Unknown" rows to "Missing"
+             # digits = everything()~ 2 # number of digits the summary statistics will be rounded to
+              ) %>% add_p() # Wilcoxon sum rank test was applied on continious variable, for categorical data pearcon shi-square test was applied
+
+
+t2 
+# to change the statistics calculation for the variables
+# for the continuous variable we want the mean and the sd 
+
+t2 <- colon_s %>%select("age","age.factor","sex.factor","obstruct.factor","mort_5yr") %>%  
+  tbl_summary(by = "mort_5yr",
+              missing = "always", # Creates a row named "Unknown" for each of the variables
+              missing_text = "(Missing)", # Changes the newly created "Unknown" rows to "Missing"
+             # digits = everything()~ 2,   # number of digits the summary statistics will be rounded to
+             statistic = list(
+               all_continuous() ~ "{mean} ({sd})" # , # calculates mean and standard deviation for each of the continuous variables 
+              # all_categorical() ~ "{n} / {N} ({p}%)"  # shows the number of number of observations for each row divided by total of that column and their percentage
+                     ),
+             label = list(age.factor ~ "Age Group", # changes the name of the variable age.factor to "Age Group" in the output table.
+                          age ~ "Age continuos"), # Changes the name of the age variable to "Age Continuous" in the output table.
+              ) %>% 
+  add_p() %>% 
+  bold_labels()  %>% # Bolds the labels
+#  add_n() # Shows the total number of observations per variable
+  add_overall(last =TRUE) # %>%  add_p()
+# adds a total column for each row. notice that this column is at the last of thable (for last = TRUE)
+# to have p value column at the last just cut the add_p column from before and paste is after add_overall(last= t ) with pipe
+  
+
+t2 
+
+
+# For multiple statistics for variables we can add statistics we want to calculate.
+t2 <- colon_s %>%select("age","age.factor","sex.factor","obstruct.factor","mort_5yr") %>%  
+  tbl_summary(by = "mort_5yr",
+              missing = "always", # Creates a row named "Unknown" for each of the variables
+              missing_text = "(Missing)", # Changes the newly created "Unknown" rows to "Missing"
+             # digits = everything()~ 2,   # number of digits the summary statistics will be rounded to
+           type = list(all_continuous() ~ "continuous2"
+                       ),# add this for continious variable
+    statistic = list(all_continuous() ~ c("{N_nonmiss}",  # stats to show
+                                     "{median} ({p25}, {p75})", 
+                                     "{min}, {max}")
+                     
+                      ),
+             label = list(age.factor ~ "Age Group", # changes the name of the variable age.factor to "Age Group" in the output table.
+                          age ~ "Age continuos"), # Changes the name of the age variable to "Age Continuous" in the output table.
+              ) %>% 
+  bold_labels()  %>% 
+  add_overall(last =TRUE)  %>%  add_p()
+
+
+t2 
+
+# N.B you can also modify the table header, footnote and everything as you wish. For more information visit https://www.danieldsjoberg.com/gtsummary/articles/tbl_summary.html 
+
+```
+
+
+
+```{r tab1_summary, include=FALSE, warning=FALSE }
+library(table1)
+library(boot)
+explanatory = c("age", "age.factor", "sex.factor", "obstruct.factor")
+dependent = "mort_5yr" 
+
+table1(~ age+ age.factor + sex.factor + obstruct.factor | mort_5yr, data= colon_s, overall = "total")
+
+
+
+
+
+```
+
+# Different regression model table (finalfit package & gtsummary)
+```{r finalfit_model}
+# Creating data for linear regression & logistics model
+reg_data <- data.frame(
+  y = rnorm(1000, mean = 5, sd = 5),
+  x1 = rnorm(1000),
+  x2 = rpois(1000, 3),
+  x3 = sample(1:10000, 1000, replace = T),
+  x4 = as.factor(sample(c("Male","Female"), 1000, replace = TRUE)),
+  x5 = as.factor(sample(c("USA","UK","Canada","France","Spain"), 1000, replace = TRUE)),
+  Disease = as.factor(sample(c(0,1), 1000, replace = TRUE))
+)
+
+head(reg_data)
+
+explanatory = c("x1","x2","x3","x4","x5")
+dependent = 'y'
+t4<- reg_data %>%
+  finalfit(dependent, explanatory)
+
+knitr::kable(t4, row.names=FALSE, align=c("l", "l", "r", "r", "r", "r"))
+# here we have a table for the Linear Regression model. the first column has the explanatory variable names.
+# 2nd column has the range(For continuous variable) & levels(for categorical variables).
+# 4th column has the mean and sd. 5th column contains the uni-variate regression coefficients, 95% CI and P-value.
+# the last column has the multivariate regression coefficients, 95%CI & P-value
+
+
+# Select any column of interest
+knitr::kable(t4[,-c(6)], row.names=FALSE, align=c("l", "l", "r", "r", "r")) # drop the univariate regression coefficient column
+# N.B: first you'll need to fix your model in usual way.
+
+# Linear regression using gtsummary
+reg <- lm(y~x1+x2+x3+x4+x5, data = reg_data)
+summary(reg)
+
+reg %>% tbl_regression() # Basic regression table
+
+
+
+# - Global p-values for Stage are reported - Large p-values are rounded to two decimal places
+# - P-values less than 0.10 are bold - Variable labels are bold
+# - Variable levels are italicized
+reg %>%
+  tbl_regression(
+    pvalue_fun = ~style_pvalue(.x, digits = 2),
+  ) %>% 
+  bold_labels() %>%
+  italicize_levels() %>%
+  add_global_p() %>%  # add global p-value 
+  add_q() %>%         # adjusts global p-values for multiple testing
+  bold_p() %>%        # bold p-values under a given threshold (default 0.05)
+  bold_p(t = 0.10, q = TRUE) %>% # now bold q-values under the threshold of 0.10
+  bold_labels()
+
+# To know more about this visit: https://www.danieldsjoberg.com/gtsummary/articles/tbl_regression.html
+```
+
+
+# Logistic regression 
+```{r logistics}
+t4<- reg_data %>%
+  finalfit(dependent, explanatory)
+
+knitr::kable(t4, row.names=FALSE, align=c("l", "l", "r", "r", "r", "r"))
+# here we have a table for the Linear Regression model. the first column has the explanatory variable names.
+# 2nd to 4th column is for summar table
+# 5th column contains the uni-variate regression coefficients, 95% CI and P-value.
+# the last column has the multivariate regression coefficients, 95%CI & P-value
+
+
+# Select any column of interest
+knitr::kable(t4[,-c(5)], row.names=FALSE, align=c("l", "l", "r", "r", "r")) # drop the univariate regression coefficient column
+# N.B: first you'll need to fix your model in usual way.
+
+# Linear regression using gtsummary
+reg <- glm(Disease~x1+x2+x3+x4+x5, data = reg_data, family = "binomial")
+summary(reg)
+
+reg %>% tbl_regression(
+  exponentiate = TRUE # provides odds ratio instead of log of odds
+) # Basic regression table
+
+
+
+# - Global p-values for Stage are reported - Large p-values are rounded to two decimal places
+# - P-values less than 0.10 are bold - Variable labels are bold
+# - Variable levels are italicized
+reg %>%
+  tbl_regression(
+    exponentiate = TRUE,
+    pvalue_fun = ~style_pvalue(.x, digits = 2),
+  ) %>% 
+  bold_labels() %>%
+  italicize_levels() %>%
+  add_global_p() %>%  # add global p-value 
+  add_q() %>%         # adjusts global p-values for multiple testing
+  bold_p() %>%        # bold p-values under a given threshold (default 0.05)
+  bold_p(t = 0.10, q = TRUE) %>% # now bold q-values under the threshold of 0.10
+  bold_labels()
+
+```
+
+
+
+
+
+
+
+
+
+
+
